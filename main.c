@@ -4,18 +4,25 @@
 #include <malloc.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define MAX_MEMORY 1024
 
 static char *FILE_PATH = "/data/media/0/Android/RegularlyClean/";
 char mMsg[50];
 
-void putLog(char *put);
+void putLog(int result);
+
+void putLogStr(char *msg);
+
+bool killPid(char **pidArray);
 
 void error(char *log, char *msg) {
-    putLog(log);
+    if (log != NULL) {
+        strcpy(mMsg, log);
+        putLog(0);
+    }
     perror(msg);
-    strcpy(mMsg, "");
     exit(EXIT_FAILURE);
 }
 
@@ -47,7 +54,7 @@ char *removeLastPath(char *value) { // 移除路径最后的字段
     if (value[len - 1] == '/') {
         return value;
     }
-    for (int i = len - 1; i >= 0; i--) {
+    for (int i = (int) len - 1; i >= 0; i--) {
         if (value[i] == '/') {
             value[i + 1] = '\0';
             break;
@@ -56,34 +63,44 @@ char *removeLastPath(char *value) { // 移除路径最后的字段
     return value;
 }
 
-void putLog(char *put) { // 输出日志
-    if (put == NULL) {
-        return;
-    }
-    FILE *fp;
-    char *nowTIme = getTime();
-    fp = fopen(joint("log.txt"), "a");
-    if (fp != NULL) {
-        fseek(fp, 0, SEEK_END);
-        fprintf(fp, "[%s] | %s\n", nowTIme, put);
-        fclose(fp);
+void putLogStr(char *msg) {
+    strcpy(mMsg, msg);
+    putLog(0);
+}
+
+void putLog(int result) { // 输出日志
+    if (result >= 0 && result < MAX_MEMORY) {
+        FILE *fp;
+        char *nowTIme = getTime();
+        fp = fopen(joint("log.txt"), "a");
+        if (fp != NULL) {
+            fseek(fp, 0, SEEK_END);
+            fprintf(fp, "[%s] | %s\n", nowTIme, mMsg);
+            fclose(fp);
+        } else {
+            perror("Unable to write to logs");
+            exit(EXIT_FAILURE);
+        }
+        strcpy(mMsg, "");
+        free(nowTIme);
     } else {
-        perror("Unable to write to logs");
-        exit(EXIT_FAILURE);
+        printf("The copied string is incomplete!");
+        strcpy(mMsg, "");
     }
-    free(nowTIme);
 }
 
 char *getExecutablePath() {
     char *path = (char *) malloc(PATH_MAX);
     if (path == NULL) {
         error(NULL, "malloc");
+        return NULL;
     }
 
     ssize_t len = readlink("/proc/self/exe", path, PATH_MAX - 1);
     if (len == -1) {
         free(path);
         error(NULL, "readlink");
+        return NULL;
     }
 
     path[len] = '\0'; // 添加字符串结束符
@@ -118,6 +135,26 @@ char **findPid(char *find) {
     pidArray[count + 1] = NULL;
     pclose(fp);
     return pidArray;
+}
+
+bool killPid(char **pidArray) {
+    for (int i = 0; pidArray[i] != NULL; i++) {
+        pid_t pid = (pid_t) strtol(pidArray[i], NULL, 10);
+        if (kill(pid, 0) == 0) {
+            if (kill(pid, SIGTERM) == 0) {
+                putLog(snprintf(mMsg, MAX_MEMORY, "[Stop] --成功终止定时进程:%d", pid));
+                free(pidArray);
+                return true;
+            } else {
+                putLog(snprintf(mMsg, MAX_MEMORY, "[W] --不存在指定进程:%d", pid));
+                free(pidArray);
+                return false;
+            }
+        }
+    }
+    putLogStr("[W] --终止定时进程失败");
+    free(pidArray);
+    return false;
 }
 
 int main() {
