@@ -5,6 +5,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+#define MAX_MEMORY 1024
+
 static char *FILE_PATH = "/data/media/0/Android/RegularlyClean/";
 char mMsg[50];
 
@@ -91,21 +93,21 @@ char *getExecutablePath() {
 
 char **findPid(char *find) {
     FILE *fp;
-    char pid[PATH_MAX];
-    char read[PATH_MAX];
+    char pid[MAX_MEMORY];
+    char read[10];
     int count = 0;
     char **pidArray = (char **) malloc(20 * sizeof(char *));
     if (pidArray == NULL) {
         error(NULL, "findPid");
         return NULL;
     }
-    snprintf(pid, PATH_MAX, "pgrep -f '%s' | grep -v $$", find);
+    snprintf(pid, sizeof(pid), "pgrep -f '%s' | grep -v $$", find);
     fp = popen(pid, "r");
     if (fp == NULL) {
         error("[W] --获取进程pid失败", "findPid");
         return NULL;
     }
-    while (fgets(read, PATH_MAX, fp) != NULL) {
+    while (fgets(read, sizeof(read), fp) != NULL) {
         char *result = removeLinefeed(read);
         pidArray[count] = result;
         if (pidArray[count] == NULL) {
