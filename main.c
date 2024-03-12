@@ -11,18 +11,19 @@
 static char *FILE_PATH = "/data/media/0/Android/RegularlyClean/";
 char mMsg[50];
 
-void putLog(int result);
+void logInt(int result);
 
-void putLogStr(char *msg);
+void logStr(char *msg);
 
 bool killPid(char **pidArray);
 
-void error(char *log, char *msg) {
-    if (log != NULL) {
-        strcpy(mMsg, log);
-        putLog(0);
-    }
+char *config(char *check);
+
+void reportErrorExit(char *log, char *msg) {
     perror(msg);
+    if (log != NULL) {
+        logStr(log);
+    }
     exit(EXIT_FAILURE);
 }
 
@@ -63,12 +64,13 @@ char *removeLastPath(char *value) { // 移除路径最后的字段
     return value;
 }
 
-void putLogStr(char *msg) {
+void logStr(char *msg) {
+    strcpy(mMsg, "");
     strcpy(mMsg, msg);
-    putLog(0);
+    logInt(0);
 }
 
-void putLog(int result) { // 输出日志
+void logInt(int result) { // 输出日志
     if (result >= 0 && result < MAX_MEMORY) {
         FILE *fp;
         char *nowTIme = getTime();
@@ -89,17 +91,17 @@ void putLog(int result) { // 输出日志
     }
 }
 
-char *getExecutablePath() {
+char *getModePath() {
     char *path = (char *) malloc(PATH_MAX);
     if (path == NULL) {
-        error(NULL, "malloc");
+        reportErrorExit("[E] --获取模块目录失败\n", "malloc");
         return NULL;
     }
 
     ssize_t len = readlink("/proc/self/exe", path, PATH_MAX - 1);
     if (len == -1) {
         free(path);
-        error(NULL, "readlink");
+        reportErrorExit("[E] --获取模块目录失败\n", "readlink");
         return NULL;
     }
 
@@ -108,27 +110,40 @@ char *getExecutablePath() {
     return path;
 }
 
+FILE *createShell(char *command, char *va1, char *va2) {
+    FILE *fp;
+    char mCommand[MAX_MEMORY];
+    if (va1 == NULL && va2 == NULL) {
+        snprintf(mCommand, MAX_MEMORY, "%s", command);
+    } else if (va1 != NULL && va2 != NULL) {
+        snprintf(mCommand, MAX_MEMORY, command, va1, va2);
+    } else if (va1 != NULL) {
+        snprintf(mCommand, MAX_MEMORY, command, va1);
+    } else {
+        snprintf(mCommand, MAX_MEMORY, command, va2);
+    }
+    fp = popen(mCommand, "r");
+    if (fp == NULL) {
+        reportErrorExit("[W] --创建Shell窗口失败\n", "createShell");
+    }
+    return fp;
+}
+
 char **findPid(char *find) {
     FILE *fp;
-    char pid[MAX_MEMORY];
     char read[10];
     int count = 0;
     char **pidArray = (char **) malloc(20 * sizeof(char *));
     if (pidArray == NULL) {
-        error(NULL, "findPid");
+        reportErrorExit(NULL, "findPid");
         return NULL;
     }
-    snprintf(pid, sizeof(pid), "pgrep -f '%s' | grep -v $$", find);
-    fp = popen(pid, "r");
-    if (fp == NULL) {
-        error("[W] --获取进程pid失败", "findPid");
-        return NULL;
-    }
+    fp = createShell("pgrep -f '%s' | grep -v $$", find, NULL);
     while (fgets(read, sizeof(read), fp) != NULL) {
         char *result = removeLinefeed(read);
         pidArray[count] = result;
         if (pidArray[count] == NULL) {
-            error(NULL, "findPid");
+            reportErrorExit(NULL, "findPid");
         }
         count = count + 1;
     }
@@ -142,25 +157,92 @@ bool killPid(char **pidArray) {
         pid_t pid = (pid_t) strtol(pidArray[i], NULL, 10);
         if (kill(pid, 0) == 0) {
             if (kill(pid, SIGTERM) == 0) {
-                putLog(snprintf(mMsg, MAX_MEMORY, "[Stop] --成功终止定时进程:%d", pid));
+                logInt(snprintf(mMsg, MAX_MEMORY, "[Stop] --成功终止定时进程:%d\n", pid));
                 free(pidArray);
                 return true;
             } else {
-                putLog(snprintf(mMsg, MAX_MEMORY, "[W] --不存在指定进程:%d", pid));
+                logInt(snprintf(mMsg, MAX_MEMORY, "[W] --不存在指定进程:%d\n", pid));
                 free(pidArray);
                 return false;
             }
         }
     }
-    putLogStr("[W] --终止定时进程失败");
+    logStr("[W] --终止定时进程失败");
     free(pidArray);
     return false;
+}
+
+void changeSed(char *path) {
+    FILE *fp;
+    fp = createShell(
+            "sed -i \"/^description=/c description=CROND: [定时进程已经终止，等待恢复中···]\" \"%smodule.prop\"", path,
+            NULL);
+    fflush(fp);
+    pclose(fp);
+}
+
+void runSh(char *path, char *value) {
+    FILE *fp;
+    fp = createShell("su -c \"sh %s%s &>/dev/null\"", path, value);
+    fflush(fp);
+    pclose(fp);
+}
+
+bool foregroundApp(char *pkg) {
+    FILE *fp;
+    fp = createShell("su -c \"dumpsys window | grep \"%s\" | grep \"mFocusedApp\"\"", pkg, NULL);
+    int have = getc(fp);
+    pclose(fp);
+    if (have == EOF) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
+char *config(char *check) {
+    char *path = joint("ModuleConfig.ini");
+    char read[MAX_MEMORY];
+    char *name;
+    char *value;
+    char *end = NULL;
+    char ch = '#';
+    FILE *fp;
+    fp = fopen(path, "r");
+    if (fp == NULL) {
+        reportErrorExit("[W] --读取配置文件失败\n", "config");
+    }
+    while (fgets(read, MAX_MEMORY, fp) != NULL) {
+        strcpy(read, removeLinefeed(read));
+        char *result = strchr(read, ch);
+        name = NULL;
+        value = NULL;
+        end = NULL;
+        if (result != NULL) {
+            char *token = strtok(read, "=");
+            if (token != NULL) {
+                name = token;
+                token = strtok(NULL, "=");
+                if (token != NULL) {
+                    value = token;
+                    if (strcmp(name, check) == 0) {
+                        end = strdup(value);
+                        break;
+                    }
+                }
+            }
+        } else {
+            continue;
+        }
+    }
+    fclose(fp);
+    return strdup(end);
 }
 
 int main() {
     char **pidList = findPid("home");
     if (pidList == NULL) {
-        error(NULL, "List is Null");
+        reportErrorExit(NULL, "List is Null");
         return 1;
     }
     for (int i = 0; pidList[i] != NULL; i++) {
