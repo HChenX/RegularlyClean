@@ -1,82 +1,31 @@
-#延迟打印
-MyPrint() {
+outPut() {
   echo "$@"
   sleep 0.05
 }
 
-MyPrint " "
-MyPrint "╔════════════════════════════════════"
-MyPrint "║   - [&]请先阅读 避免一些不必要的问题"
-MyPrint "╠════════════════════════════════════"
-MyPrint "║"
-MyPrint "║   - 1.模块刷入重启后，只在用户解锁设备才开始生效。"
-MyPrint "║   - 2.使用crond定时命令，不会浪费或占用系统资源。"
-MyPrint "║   - 3.模块自定义路径: /sdcard/Android/clear_the_blacklist/"
-MyPrint "║ "
-MyPrint "║   - https://github.com/Petit-Abba/black_and_white_list/"
-MyPrint "║ "
-MyPrint "╚════════════════════════════════════"
-MyPrint " "
+path="/sdcard/Android/RegularlyClean"
+path_old="/sdcard/Android/RegularlyClean_old"
+crond_path="$path/ScheduledTasks"
 
-#定义变量
-#定义文件夹路径
-black_and_white_list_path="/sdcard/Android/clear_the_blacklist"
-black_and_white_list_path_old="/sdcard/Android/clear_the_blacklist_old"
-cron_set_dir="${black_and_white_list_path}/定时任务"
-
-# 判断是否安装过
-[[ -d ${black_and_white_list_path} ]] && {
-  MyPrint "检测到已经安装过。"
-  MyPrint "杀死crond进程···"
-  # 获取crond的pid
-  crond_pid="$(pgrep -f 'set_cron.d' | grep -v $$)"
-  time_pid="$(pgrep -f 'Timeoff.sh' | grep -v $$)"
-  # "-n"当是非空时返回true，和! -z一样。
-  [[ -n "${crond_pid}" ]] && {
-    for kill_pid in ${crond_pid}; do
-      kill -9 "${kill_pid}" && MyPrint "杀死crond进程: ${kill_pid}"
+[[ -d $path ]] && {
+  outPut "杀死正在运行的crond进程···"
+  crond_pid="$(pgrep -f 'regularly.d' | grep -v $$)"
+  [[ -n "$crond_pid" ]] && {
+    for kill_pid in $crond_pid; do
+      kill -9 "$kill_pid" && outPut "杀死crond进程: $kill_pid"
     done
   }
-  [[ -n "${time_pid}" ]] && {
-    for killd_pid in ${time_pid}; do
-      kill -9 "${killd_pid}" && MyPrint "杀死监测进程: ${killd_pid}"
-    done
-  }
-  MyPrint "备份历史文件···"
-  rm -rf "$black_and_white_list_path_old"
-  mkdir -p "$black_and_white_list_path_old"
-  cp -rf $black_and_white_list_path/* "$black_and_white_list_path_old"
-  rm -rf "$black_and_white_list_path"
-  MyPrint "历史文件路径：$black_and_white_list_path_old"
+  outPut "备份历史文件···"
+  rm -rf "$path_old" && mkdir -p "$path_old"
+  cp -rf $path/* "$path_old"
+  rm -rf "$path"
+  outPut "历史文件路径：$path_old"
 }
 
-#如果是ksu则判断busybox是否存在
-[[ -f "/data/adb/ksud" ]] && {
-  #获取ksu的busybox地址
-  busybox="/data/adb/ksu/bin/busybox"
-  #释放地址
-  filepath="/data/adb/busybox"
-  #检查必要文件
-  crond_check="/data/adb/busybox/crond"
-  #检查Busybox并释放
-  [[ -f $busybox ]] && {
-    [[ ! -d $filepath ]] || [[ ! -f $crond_check ]] && {
-      #先删一次保险
-      rm -rf "$filepath" &>/dev/null
-      #如果没有此文件夹则创建
-      mkdir -p "$filepath"
-      #存在Busybox开始释放
-      "$busybox" --install -s "$filepath"
-      MyPrint "已安装busybox。"
-    }
-  }
-}
-
-#释放文件
-mkdir -p ${cron_set_dir}
-cp -r "${MODPATH}"/AndroidFile/黑名单.prop ${black_and_white_list_path}/
-cp -r "${MODPATH}"/AndroidFile/白名单.prop ${black_and_white_list_path}/
-cp -r "${MODPATH}"/AndroidFile/定时任务/定时设置.ini ${cron_set_dir}/
-cp -r "${MODPATH}"/AndroidFile/定时任务/Run_cron.sh ${cron_set_dir}/
-rm -rf "${MODPATH}"/AndroidFile/
-MyPrint "安装完成！"
+mkdir -p $crond_path
+cp -r "$MODPATH"/AndroidFile/Blacklist.prop $path/
+cp -r "$MODPATH"/AndroidFile/Whitelist.prop $path/
+cp -r "$MODPATH"/AndroidFile/ModuleConfig.ini $path/
+cp -r "$MODPATH"/AndroidFile/ScheduledTasks/CreateCrond.sh $crond_path/
+rm -rf "$MODPATH"/AndroidFile/
+outPut "安装完成！"
