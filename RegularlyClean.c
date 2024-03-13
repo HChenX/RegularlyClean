@@ -8,7 +8,7 @@
 
 #define MAX_MEMORY 1024
 
-static char *FILE_PATH = "/data/media/0/Android/RegularlyClean/";
+static char FILE_PATH[50] = "/data/media/0/Android/RegularlyClean/";
 char mMsg[50];
 
 void logInt(int result);
@@ -47,7 +47,9 @@ char *removeLinefeed(char *value) {
 }
 
 char *joint(char *value) {
-    return strcat(FILE_PATH, value);
+    char result[MAX_MEMORY];
+    strcpy(result, FILE_PATH);
+    return strcat(result, value);
 }
 
 char *removeLastPath(char *value) { // 移除路径最后的字段
@@ -94,14 +96,14 @@ void logInt(int result) { // 输出日志
 char *getModePath() {
     char *path = (char *) malloc(PATH_MAX);
     if (path == NULL) {
-        reportErrorExit("[E] --获取模块目录失败\n", "malloc");
+        reportErrorExit("[E] --获取模块目录失败", "malloc");
         return NULL;
     }
 
     ssize_t len = readlink("/proc/self/exe", path, PATH_MAX - 1);
     if (len == -1) {
         free(path);
-        reportErrorExit("[E] --获取模块目录失败\n", "readlink");
+        reportErrorExit("[E] --获取模块目录失败", "readlink");
         return NULL;
     }
 
@@ -110,21 +112,16 @@ char *getModePath() {
     return path;
 }
 
-FILE *createShell(char *command, char *va1, char *va2) {
+FILE *createShell(char *command, ...) {
     FILE *fp;
     char mCommand[MAX_MEMORY];
-    if (va1 == NULL && va2 == NULL) {
-        snprintf(mCommand, MAX_MEMORY, "%s", command);
-    } else if (va1 != NULL && va2 != NULL) {
-        snprintf(mCommand, MAX_MEMORY, command, va1, va2);
-    } else if (va1 != NULL) {
-        snprintf(mCommand, MAX_MEMORY, command, va1);
-    } else {
-        snprintf(mCommand, MAX_MEMORY, command, va2);
-    }
+    va_list vaList;
+    va_start(vaList, command);
+    vsnprintf(mCommand, MAX_MEMORY, command, vaList);
+    va_end(vaList);
     fp = popen(mCommand, "r");
     if (fp == NULL) {
-        reportErrorExit("[W] --创建Shell窗口失败\n", "createShell");
+        reportErrorExit("[W] --创建Shell窗口失败", "createShell");
     }
     return fp;
 }
@@ -138,7 +135,7 @@ char **findPid(char *find) {
         reportErrorExit(NULL, "findPid");
         return NULL;
     }
-    fp = createShell("pgrep -f '%s' | grep -v $$", find, NULL);
+    fp = createShell("pgrep -f '%s' | grep -v $$", find);
     while (fgets(read, sizeof(read), fp) != NULL) {
         char *result = removeLinefeed(read);
         pidArray[count] = result;
@@ -153,30 +150,28 @@ char **findPid(char *find) {
 }
 
 bool killPid(char **pidArray) {
+    bool result = false;
     for (int i = 0; pidArray[i] != NULL; i++) {
         pid_t pid = (pid_t) strtol(pidArray[i], NULL, 10);
         if (kill(pid, 0) == 0) {
             if (kill(pid, SIGTERM) == 0) {
-                logInt(snprintf(mMsg, MAX_MEMORY, "[Stop] --成功终止定时进程:%d\n", pid));
-                free(pidArray);
-                return true;
+                logInt(snprintf(mMsg, MAX_MEMORY, "[Stop] --成功终止定时进程:%d", pid));
+                result = true;
             } else {
-                logInt(snprintf(mMsg, MAX_MEMORY, "[W] --不存在指定进程:%d\n", pid));
-                free(pidArray);
-                return false;
+                logInt(snprintf(mMsg, MAX_MEMORY, "[W] --不存在指定进程:%d", pid));
+                result = false;
+                break;
             }
         }
     }
-    logStr("[W] --终止定时进程失败");
     free(pidArray);
-    return false;
+    return result;
 }
 
 void changeSed(char *path) {
     FILE *fp;
     fp = createShell(
-            "sed -i \"/^description=/c description=CROND: [定时进程已经终止，等待恢复中···]\" \"%smodule.prop\"", path,
-            NULL);
+            "sed -i \"/^description=/c description=CROND: [定时进程已经终止，等待恢复中···]\" \"%smodule.prop\"", path);
     fflush(fp);
     pclose(fp);
 }
@@ -190,7 +185,7 @@ void runSh(char *path, char *value) {
 
 bool foregroundApp(char *pkg) {
     FILE *fp;
-    fp = createShell("su -c \"dumpsys window | grep \"%s\" | grep \"mFocusedApp\"\"", pkg, NULL);
+    fp = createShell("su -c \"dumpsys window | grep \"%s\" | grep \"mFocusedApp\"\"", pkg);
     int have = getc(fp);
     pclose(fp);
     if (have == EOF) {
@@ -210,7 +205,7 @@ char *config(char *check) {
     FILE *fp;
     fp = fopen(path, "r");
     if (fp == NULL) {
-        reportErrorExit("[W] --读取配置文件失败\n", "config");
+        reportErrorExit("[W] --读取配置文件失败", "config");
     }
     while (fgets(read, MAX_MEMORY, fp) != NULL) {
         strcpy(read, removeLinefeed(read));
@@ -218,7 +213,7 @@ char *config(char *check) {
         name = NULL;
         value = NULL;
         end = NULL;
-        if (result != NULL) {
+        if (result == NULL) {
             char *token = strtok(read, "=");
             if (token != NULL) {
                 name = token;
@@ -226,7 +221,7 @@ char *config(char *check) {
                 if (token != NULL) {
                     value = token;
                     if (strcmp(name, check) == 0) {
-                        end = strdup(value);
+                        end = value;
                         break;
                     }
                 }
@@ -236,18 +231,43 @@ char *config(char *check) {
         }
     }
     fclose(fp);
-    return strdup(end);
+    return end;
+}
+
+_Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
+    bool lastState = true;
+    while (true) {
+        if (foregroundClear) {
+            bool mt = foregroundApp("bin.mt.plus");
+            if (mt) {
+                runSh("", "");
+            }
+        }
+        if (stateCheck) {
+            char file[MAX_MEMORY];
+            char *path = getModePath();
+            snprintf(file, PATH_MAX, "%s/disable", path);
+            if (access(file, 0) == 0 && lastState) {
+                char **pids = findPid("RegularlyClean");
+                if (!killPid(pids)) {
+                    logStr("[E] --停止模块定时进程失败");
+                } else {
+                    changeSed(path);
+                    lastState = false;
+                }
+            } else if (access(file, 0) != 0 && !lastState) {
+                runSh("", "");
+                lastState = true;
+            }
+            free(path);
+        }
+        sleep(1);
+    }
 }
 
 int main() {
-    char **pidList = findPid("home");
-    if (pidList == NULL) {
-        reportErrorExit(NULL, "List is Null");
-        return 1;
-    }
-    for (int i = 0; pidList[i] != NULL; i++) {
-        printf("PID: %s", pidList[i]);
-    }
-    free(pidList);
+    bool foregroundClear = config("auto_clear");
+    bool stateCheck = config("state_check");
+    whenWhile(foregroundClear, stateCheck);
     return 0;
 }

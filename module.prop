@@ -1,0 +1,6 @@
+id=crond_clear_the_blacklist
+name=crond 清理黑名单列表
+version=v5.5.0 (23/06/26)
+versionCode=20230626
+author=阿巴酱(Petit-Abba) | 焕晨
+description=CROND: [ 等待刷新.. ]

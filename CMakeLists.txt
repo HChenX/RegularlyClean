@@ -5,7 +5,4 @@ set(CMAKE_C_STANDARD 23)
 
 add_executable(RegularlyClean
         RegularlyClean.c
-        #        test.c
-        #        Clearapp.c
-        #        Timeoff.c)
 )
