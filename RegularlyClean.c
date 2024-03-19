@@ -17,7 +17,7 @@ void logStr(char *msg);
 
 bool killPid(char **pidArray);
 
-char *config(char *check);
+char **config(char *check);
 
 void reportErrorExit(char *log, char *msg) {
     perror(msg);
@@ -144,7 +144,7 @@ char **findPid(char *find) {
         }
         count = count + 1;
     }
-    pidArray[count + 1] = NULL;
+    pidArray[count] = NULL;
     pclose(fp);
     return pidArray;
 }
@@ -195,34 +195,56 @@ bool foregroundApp(char *pkg) {
     }
 }
 
-char *config(char *check) {
+char **config(char *check) {
     char *path = joint("ModuleConfig.ini");
     char read[MAX_MEMORY];
     char *name;
     char *value;
-    char *end = NULL;
+    int count = 0;
+    bool keep = false;
     char ch = '#';
     FILE *fp;
     fp = fopen(path, "r");
     if (fp == NULL) {
         reportErrorExit("[W] --∂¡»°≈‰÷√Œƒº˛ ß∞‹", "config");
     }
+    char **valueArray = (char **) malloc(20 * sizeof(char *));
+    if (valueArray == NULL) {
+        fclose(fp);
+        reportErrorExit(NULL, "config");
+        return NULL;
+    }
     while (fgets(read, MAX_MEMORY, fp) != NULL) {
         strcpy(read, removeLinefeed(read));
         char *result = strchr(read, ch);
         name = NULL;
         value = NULL;
-        end = NULL;
         if (result == NULL) {
             char *token = strtok(read, "=");
-            if (token != NULL) {
+            if (token != NULL || keep) {
                 name = token;
                 token = strtok(NULL, "=");
-                if (token != NULL) {
+                if (token != NULL || keep) {
                     value = token;
-                    if (strcmp(name, check) == 0) {
-                        end = value;
-                        break;
+                    if (strcmp(value, "\"") == 0 && keep) {
+                        keep = false;
+                        continue;
+                    }
+                    if (strcmp(value, "\"") == 0 && strcmp(name, check) == 0) {
+                        keep = true;
+                        continue;
+                    } else {
+                        if (keep) {
+                            valueArray[count] = read;
+                            count = count + 1;
+                            continue;
+                        } else {
+                            if (strcmp(name, check) == 0) {
+                                valueArray[count] = value;
+                                count = count + 1;
+                                break;
+                            }
+                        }
                     }
                 }
             }
@@ -230,8 +252,15 @@ char *config(char *check) {
             continue;
         }
     }
+    valueArray[count] = NULL;
     fclose(fp);
-    return end;
+    return valueArray;
+}
+
+char *onlyReadOne(char **valueArray) {
+    char *read = valueArray[0];
+    free(valueArray);
+    return read;
 }
 
 _Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
@@ -266,8 +295,8 @@ _Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
 }
 
 int main() {
-    bool foregroundClear = config("auto_clear");
-    bool stateCheck = config("state_check");
-    whenWhile(foregroundClear, stateCheck);
+    bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y");
+    bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y");
+//    whenWhile(foregroundClear, stateCheck);
     return 0;
 }
