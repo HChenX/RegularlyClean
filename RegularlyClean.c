@@ -196,7 +196,7 @@ bool foregroundApp(char *pkg) {
 }
 
 char **config(char *check) {
-    char *path = joint("ModuleConfig.ini");
+    char *path = joint("config.ini");
     char read[MAX_MEMORY];
     char *name;
     char *value;
@@ -217,15 +217,18 @@ char **config(char *check) {
     while (fgets(read, MAX_MEMORY, fp) != NULL) {
         strcpy(read, removeLinefeed(read));
         char *result = strchr(read, ch);
+        free(name);
+        free(value);
         name = NULL;
         value = NULL;
         if (result == NULL) {
             char *token = strtok(read, "=");
             if (token != NULL || keep) {
-                name = token;
+                name = strdup(token);
                 token = strtok(NULL, "=");
                 if (token != NULL || keep) {
-                    value = token;
+                    if (!keep) value = strdup(token);
+                    else value = strdup(read);
                     if (strcmp(value, "\"") == 0 && keep) {
                         keep = false;
                         continue;
@@ -235,13 +238,13 @@ char **config(char *check) {
                         continue;
                     } else {
                         if (keep) {
-                            valueArray[count] = read;
+                            valueArray[count] = strdup(read);
                             count = count + 1;
                             continue;
                         } else {
                             if (strcmp(name, check) == 0) {
-                                valueArray[count] = value;
-                                count = count + 1;
+                                valueArray[0] = strdup(value);
+                                count = 1;
                                 break;
                             }
                         }
@@ -259,6 +262,9 @@ char **config(char *check) {
 
 char *onlyReadOne(char **valueArray) {
     char *read = valueArray[0];
+    if (read == NULL) {
+        read = "n";
+    }
     free(valueArray);
     return read;
 }
@@ -297,6 +303,12 @@ _Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
 int main() {
     bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y");
     bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y");
+    char **appArray = config("app_map");
+    for (int i = 0; appArray[i] != NULL; i++) {
+        printf("app: %s\n", appArray[i]);
+    }
+    free(appArray);
+    printf("cl: %d,check: %d\n", foregroundClear, stateCheck);
 //    whenWhile(foregroundClear, stateCheck);
     return 0;
 }
