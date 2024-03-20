@@ -9,7 +9,7 @@
 #define MAX_MEMORY 1024
 
 static char FILE_PATH[50] = "/data/media/0/Android/RegularlyClean/";
-char mMsg[50];
+char mMsg[200];
 
 void logInt(int result);
 
@@ -19,6 +19,8 @@ bool killPid(char **pidArray);
 
 char **config(char *check);
 
+char *vaPrintf(char *msg, va_list vaList);
+
 void reportErrorExit(char *log, char *msg) {
     perror(msg);
     if (log != NULL) {
@@ -27,8 +29,8 @@ void reportErrorExit(char *log, char *msg) {
     exit(EXIT_FAILURE);
 }
 
-char *getTime() { // »ñÈ¡µ±Ç°Ê±¼ä
-    int TIME_PATH = 14; // Ä¿²â×îÉÙĞèÒªµÄ×Ö·ûÊı
+char *getTime() { // è·å–å½“å‰æ—¶é—´
+    int TIME_PATH = 30; // ç›®æµ‹æœ€å°‘éœ€è¦çš„å­—ç¬¦æ•°
     time_t curr_time;
     struct tm *local_time;
     char mTime[TIME_PATH];
@@ -52,7 +54,7 @@ char *joint(char *value) {
     return strcat(result, value);
 }
 
-char *removeLastPath(char *value) { // ÒÆ³ıÂ·¾¶×îºóµÄ×Ö¶Î
+char *removeLastPath(char *value) { // ç§»é™¤è·¯å¾„æœ€åçš„å­—æ®µ
     size_t len = strlen(value);
     if (value[len - 1] == '/') {
         return value;
@@ -72,21 +74,21 @@ void logStr(char *msg) {
     logInt(0);
 }
 
-void logInt(int result) { // Êä³öÈÕÖ¾
+void logInt(int result) { // è¾“å‡ºæ—¥å¿—
     if (result >= 0 && result < MAX_MEMORY) {
         FILE *fp;
-        char *nowTIme = getTime();
+        char *nowTime = getTime();
         fp = fopen(joint("log.txt"), "a");
         if (fp != NULL) {
             fseek(fp, 0, SEEK_END);
-            fprintf(fp, "[%s] | %s\n", nowTIme, mMsg);
+            fprintf(fp, "[%s] | %s\n", nowTime, mMsg);
             fclose(fp);
         } else {
             perror("Unable to write to logs");
             exit(EXIT_FAILURE);
         }
         strcpy(mMsg, "");
-        free(nowTIme);
+        free(nowTime);
     } else {
         printf("The copied string is incomplete!");
         strcpy(mMsg, "");
@@ -96,33 +98,50 @@ void logInt(int result) { // Êä³öÈÕÖ¾
 char *getModePath() {
     char *path = (char *) malloc(PATH_MAX);
     if (path == NULL) {
-        reportErrorExit("[E] --»ñÈ¡Ä£¿éÄ¿Â¼Ê§°Ü", "malloc");
+        reportErrorExit("[E] --è·å–æ¨¡å—ç›®å½•å¤±è´¥", "malloc");
         return NULL;
     }
 
     ssize_t len = readlink("/proc/self/exe", path, PATH_MAX - 1);
     if (len == -1) {
         free(path);
-        reportErrorExit("[E] --»ñÈ¡Ä£¿éÄ¿Â¼Ê§°Ü", "readlink");
+        reportErrorExit("[E] --è·å–æ¨¡å—ç›®å½•å¤±è´¥", "readlink");
         return NULL;
     }
 
-    path[len] = '\0'; // Ìí¼Ó×Ö·û´®½áÊø·û
+    path[len] = '\0'; // æ·»åŠ å­—ç¬¦ä¸²ç»“æŸç¬¦
     path = removeLastPath(path);
     return path;
 }
 
+char *vaPrintf(char *msg, va_list vaList) {
+    int size = vsnprintf(NULL, 0, msg, vaList);
+    if (size < 0) {
+        reportErrorExit(NULL, "vaPrintf");
+        return NULL;
+    }
+    char *mCommand = (char *) malloc((size + 1) * sizeof(char));
+    if (mCommand == NULL) {
+        reportErrorExit(NULL, "vaPrintf");
+        return NULL;
+    }
+    vsnprintf(mCommand, size + 1, msg, vaList);
+    return mCommand;
+}
+
 FILE *createShell(char *command, ...) {
     FILE *fp;
-    char mCommand[MAX_MEMORY];
     va_list vaList;
     va_start(vaList, command);
-    vsnprintf(mCommand, MAX_MEMORY, command, vaList);
+    char *mCommand = vaPrintf(command, vaList);
     va_end(vaList);
     fp = popen(mCommand, "r");
     if (fp == NULL) {
-        reportErrorExit("[W] --´´½¨Shell´°¿ÚÊ§°Ü", "createShell");
+        free(mCommand);
+        reportErrorExit(NULL, "createShell");
+        return NULL;
     }
+    free(mCommand);
     return fp;
 }
 
@@ -138,7 +157,7 @@ char **findPid(char *find) {
     fp = createShell("pgrep -f '%s' | grep -v $$", find);
     while (fgets(read, sizeof(read), fp) != NULL) {
         char *result = removeLinefeed(read);
-        pidArray[count] = result;
+        pidArray[count] = strdup(result);
         if (pidArray[count] == NULL) {
             reportErrorExit(NULL, "findPid");
         }
@@ -153,12 +172,13 @@ bool killPid(char **pidArray) {
     bool result = false;
     for (int i = 0; pidArray[i] != NULL; i++) {
         pid_t pid = (pid_t) strtol(pidArray[i], NULL, 10);
+        free(pidArray[i]);
         if (kill(pid, 0) == 0) {
             if (kill(pid, SIGTERM) == 0) {
-                logInt(snprintf(mMsg, MAX_MEMORY, "[Stop] --³É¹¦ÖÕÖ¹¶¨Ê±½ø³Ì:%d", pid));
+                logInt(snprintf(mMsg, MAX_MEMORY, "[Stop] --æˆåŠŸç»ˆæ­¢å®šæ—¶è¿›ç¨‹:%d", pid));
                 result = true;
             } else {
-                logInt(snprintf(mMsg, MAX_MEMORY, "[W] --²»´æÔÚÖ¸¶¨½ø³Ì:%d", pid));
+                logInt(snprintf(mMsg, MAX_MEMORY, "[W] --ä¸å­˜åœ¨æŒ‡å®šè¿›ç¨‹:%d", pid));
                 result = false;
                 break;
             }
@@ -171,7 +191,7 @@ bool killPid(char **pidArray) {
 void changeSed(char *path) {
     FILE *fp;
     fp = createShell(
-            "sed -i \"/^description=/c description=CROND: [¶¨Ê±½ø³ÌÒÑ¾­ÖÕÖ¹£¬µÈ´ı»Ö¸´ÖĞ¡¤¡¤¡¤]\" \"%smodule.prop\"", path);
+            "sed -i \"/^description=/c description=CROND: [å®šæ—¶è¿›ç¨‹å·²ç»ç»ˆæ­¢ï¼Œç­‰å¾…æ¢å¤ä¸­Â·Â·Â·]\" \"%smodule.prop\"", path);
     fflush(fp);
     pclose(fp);
 }
@@ -206,7 +226,7 @@ char **config(char *check) {
     FILE *fp;
     fp = fopen(path, "r");
     if (fp == NULL) {
-        reportErrorExit("[W] --¶ÁÈ¡ÅäÖÃÎÄ¼şÊ§°Ü", "config");
+        reportErrorExit("[W] --è¯»å–é…ç½®æ–‡ä»¶å¤±è´¥", "config");
     }
     char **valueArray = (char **) malloc(20 * sizeof(char *));
     if (valueArray == NULL) {
@@ -285,7 +305,7 @@ _Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
             if (access(file, 0) == 0 && lastState) {
                 char **pids = findPid("RegularlyClean");
                 if (!killPid(pids)) {
-                    logStr("[E] --Í£Ö¹Ä£¿é¶¨Ê±½ø³ÌÊ§°Ü");
+                    logStr("[E] --åœæ­¢æ¨¡å—å®šæ—¶è¿›ç¨‹å¤±è´¥");
                 } else {
                     changeSed(path);
                     lastState = false;
@@ -301,14 +321,15 @@ _Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
 }
 
 int main() {
-    bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y");
-    bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y");
-    char **appArray = config("app_map");
-    for (int i = 0; appArray[i] != NULL; i++) {
-        printf("app: %s\n", appArray[i]);
-    }
-    free(appArray);
-    printf("cl: %d,check: %d\n", foregroundClear, stateCheck);
+    bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y") == 0;
+    bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y") == 0;
+    bool appArray = killPid(findPid("com.miui.securitycenter"));
+//    for (int i = 0; appArray[i] != NULL; i++) {
+//        printf("app: %s con: %d\n", appArray[i], i);
+//        free(appArray[i]);
+//    }
+//    free(appArray);
+    printf("cl: %d,check: %d, kill: %d\n", foregroundClear, stateCheck, appArray);
 //    whenWhile(foregroundClear, stateCheck);
     return 0;
 }
