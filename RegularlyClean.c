@@ -10,6 +10,7 @@
 
 static char FILE_PATH[50] = "/data/media/0/Android/RegularlyClean/";
 char mMsg[200];
+char **appArray;
 
 void logInt(int result);
 
@@ -21,7 +22,7 @@ char **config(char *check);
 
 char *vaPrintf(char *msg, va_list vaList);
 
-void reportErrorExit(char *log, char *msg) {
+void reportErrorExit(char *log, char *msg) { // 报告错误并退出
     perror(msg);
     if (log != NULL) {
         logStr(log);
@@ -40,7 +41,14 @@ char *getTime() { // 获取当前时间
     return strdup(mTime);
 }
 
-char *removeLinefeed(char *value) {
+long getVagueTime() {
+    long vagueTime;
+    time_t curr_time;
+    vagueTime = time(&curr_time);
+    return vagueTime;
+}
+
+char *removeLinefeed(char *value) { // 移除换行符
     size_t len = strlen(value);
     if (len > 0 && value[len - 1] == '\n') {
         value[len - 1] = '\0';
@@ -56,12 +64,9 @@ char *joint(char *value) {
 
 char *removeLastPath(char *value) { // 移除路径最后的字段
     size_t len = strlen(value);
-    if (value[len - 1] == '/') {
-        return value;
-    }
     for (int i = (int) len - 1; i >= 0; i--) {
         if (value[i] == '/') {
-            value[i + 1] = '\0';
+            value[i] = '\0';
             break;
         }
     }
@@ -95,26 +100,26 @@ void logInt(int result) { // 输出日志
     }
 }
 
-char *getModePath() {
-    char *path = (char *) malloc(PATH_MAX);
+char *getModePath() { // 获取模块目录
+    char *path = (char *) malloc(MAX_MEMORY);
     if (path == NULL) {
         reportErrorExit("[E] --获取模块目录失败", "malloc");
         return NULL;
     }
 
-    ssize_t len = readlink("/proc/self/exe", path, PATH_MAX - 1);
+    ssize_t len = readlink("/proc/self/exe", path, MAX_MEMORY - 1);
     if (len == -1) {
         free(path);
         reportErrorExit("[E] --获取模块目录失败", "readlink");
         return NULL;
     }
 
-    path[len] = '\0'; // 添加字符串结束符
+//    path[len] = '\0'; // 添加字符串结束符
     path = removeLastPath(path);
     return path;
 }
 
-char *vaPrintf(char *msg, va_list vaList) {
+char *vaPrintf(char *msg, va_list vaList) { // 格式化字符串
     int size = vsnprintf(NULL, 0, msg, vaList);
     if (size < 0) {
         reportErrorExit(NULL, "vaPrintf");
@@ -129,7 +134,7 @@ char *vaPrintf(char *msg, va_list vaList) {
     return mCommand;
 }
 
-FILE *createShell(char *command, ...) {
+FILE *createShell(char *command, ...) { // 创建 Shell
     FILE *fp;
     va_list vaList;
     va_start(vaList, command);
@@ -145,7 +150,7 @@ FILE *createShell(char *command, ...) {
     return fp;
 }
 
-char **findPid(char *find) {
+char **findPid(char *find) { // 查找 PID
     FILE *fp;
     char read[10];
     int count = 0;
@@ -168,7 +173,7 @@ char **findPid(char *find) {
     return pidArray;
 }
 
-bool killPid(char **pidArray) {
+bool killPid(char **pidArray) { // 杀死指定 PID
     bool result = false;
     for (int i = 0; pidArray[i] != NULL; i++) {
         pid_t pid = (pid_t) strtol(pidArray[i], NULL, 10);
@@ -215,7 +220,7 @@ bool foregroundApp(char *pkg) {
     }
 }
 
-char **config(char *check) {
+char **config(char *check) { // 读取配置
     char *path = joint("config.ini");
     char read[MAX_MEMORY];
     char *name;
@@ -289,19 +294,46 @@ char *onlyReadOne(char **valueArray) {
     return read;
 }
 
-_Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
+_Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
+                         bool stateCheck, char **apps) {
     bool lastState = true;
+    bool shouldSleep = false;
+    bool isForeground = false;
+    bool isCleared = false;
+    long lastTime = 0;
     while (true) {
         if (foregroundClear) {
-            bool mt = foregroundApp("bin.mt.plus");
-            if (mt) {
-                runSh("", "");
+            if (shouldSleep) {
+                long nowTime = getVagueTime();
+                if ((nowTime - lastTime) > 120) {
+                    shouldSleep = false;
+                }
+            } else {
+                for (int i = 0; apps[i] != NULL; i++) {
+                    char *app = apps[i];
+                    isForeground = foregroundApp(app);
+                    if (isForeground) break;
+                }
+                if (isForeground) {
+                    if (clearOnce) {
+                        if (!isCleared) {
+                            runSh("", "");
+                            isCleared = true;
+                        }
+                    } else {
+                        runSh("", "");
+                    }
+                    lastTime = getVagueTime();
+                    shouldSleep = true;
+                } else {
+                    if (clearOnce) isCleared = false;
+                }
             }
         }
         if (stateCheck) {
             char file[MAX_MEMORY];
             char *path = getModePath();
-            snprintf(file, PATH_MAX, "%s/disable", path);
+            snprintf(file, MAX_MEMORY, "%s/disable", path);
             if (access(file, 0) == 0 && lastState) {
                 char **pids = findPid("RegularlyClean");
                 if (!killPid(pids)) {
@@ -316,20 +348,34 @@ _Noreturn void whenWhile(bool foregroundClear, bool stateCheck) {
             }
             free(path);
         }
-        sleep(1);
+        sleep(5);
     }
+}
+
+void cleanup() {
+    for (int i = 0; appArray[i] != NULL; i++) {
+        free(appArray[i]);
+    }
+    free(appArray);
 }
 
 int main() {
     bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y") == 0;
+    bool clearOnce = strcmp(onlyReadOne(config("clear_only_once")), "y") == 0;
     bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y") == 0;
-    bool appArray = killPid(findPid("com.miui.securitycenter"));
-//    for (int i = 0; appArray[i] != NULL; i++) {
-//        printf("app: %s con: %d\n", appArray[i], i);
-//        free(appArray[i]);
-//    }
-//    free(appArray);
-    printf("cl: %d,check: %d, kill: %d\n", foregroundClear, stateCheck, appArray);
+    appArray = config("app_map");
+    atexit(cleanup);
+    whenWhile(foregroundClear, clearOnce, stateCheck, appArray);
+    /*for (int i = 0; appArray[i] != NULL; i++) {
+        printf("app: %s con: %d\n", appArray[i], i);
+        free(appArray[i]);
+    }
+    free(appArray);
+    char file[MAX_MEMORY];
+    char *path = getModePath();
+    snprintf(file, MAX_MEMORY, "%s/disable", path);
+    printf("path:%s\nforeground:%d state:%d\n", file, foregroundClear, stateCheck);
+    free(path);*/
 //    whenWhile(foregroundClear, stateCheck);
-    return 0;
+//    return 0;
 }
