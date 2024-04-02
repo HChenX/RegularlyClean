@@ -62,15 +62,25 @@ char *joint(char *value) {
     return strcat(result, value);
 }
 
-char *removeLastPath(char *value) { // 移除路径最后的字段
+char *removeLastPath(char *value, char remove) { // 移除路径最后的字段
     size_t len = strlen(value);
     for (int i = (int) len - 1; i >= 0; i--) {
-        if (value[i] == '/') {
+        if (value[i] == remove) {
             value[i] = '\0';
             break;
         }
     }
     return value;
+}
+
+bool findCharAtEnd(char *value, char need) {
+    size_t len = strlen(value);
+    for (int i = (int) len - 1; i >= 0; i--) {
+        if (value[i] == need) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void logStr(char *msg) {
@@ -115,7 +125,7 @@ char *getModePath() { // 获取模块目录
     }
 
 //    path[len] = '\0'; // 添加字符串结束符
-    path = removeLastPath(path);
+    path = removeLastPath(path, '/');
     return path;
 }
 
@@ -223,8 +233,8 @@ bool foregroundApp(char *pkg) {
 char **config(char *check) { // 读取配置
     char *path = joint("config.ini");
     char read[MAX_MEMORY];
-    char *name;
-    char *value;
+    char *name = NULL;
+    char *value = NULL;
     int count = 0;
     bool keep = false;
     char ch = '#';
@@ -241,6 +251,7 @@ char **config(char *check) { // 读取配置
     }
     while (fgets(read, MAX_MEMORY, fp) != NULL) {
         strcpy(read, removeLinefeed(read));
+        if (strcmp(read, "") == 0) continue;
         char *result = strchr(read, ch);
         free(name);
         free(value);
@@ -249,15 +260,27 @@ char **config(char *check) { // 读取配置
         if (result == NULL) {
             char *token = strtok(read, "=");
             if (token != NULL || keep) {
-                name = strdup(token);
+                if (token != NULL) name = strdup(token);
                 token = strtok(NULL, "=");
                 if (token != NULL || keep) {
-                    if (!keep) value = strdup(token);
-                    else value = strdup(read);
-                    if (strcmp(value, "\"") == 0 && keep) {
-                        keep = false;
-                        continue;
+                    // printf("read: %s token: %s\n", read, token);
+                    if (token != NULL && keep) {
+                        reportErrorExit("[E] --读取clear配置错误", "clear_error");
+                        break;
                     }
+                    if (keep) {
+                        value = strdup(read);
+                        if (findCharAtEnd(value, '"')) {
+                            value = removeLastPath(value, '"');
+                            valueArray[count] = strdup(value);
+                            count = count + 1;
+                            keep = false;
+                            continue;
+                        } else if (strcmp(value, "\"") == 0) {
+                            keep = false;
+                            continue;
+                        }
+                    } else value = strdup(token);
                     if (strcmp(value, "\"") == 0 && strcmp(name, check) == 0) {
                         keep = true;
                         continue;
@@ -357,25 +380,40 @@ void cleanup() {
         free(appArray[i]);
     }
     free(appArray);
+    printf("clear");
 }
 
 int main() {
-    bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y") == 0;
-    bool clearOnce = strcmp(onlyReadOne(config("clear_only_once")), "y") == 0;
-    bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y") == 0;
+//    bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y") == 0;
+//    bool clearOnce = strcmp(onlyReadOne(config("clear_only_once")), "y") == 0;
+//    bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y") == 0;
     appArray = config("app_map");
     atexit(cleanup);
-    whenWhile(foregroundClear, clearOnce, stateCheck, appArray);
-    /*for (int i = 0; appArray[i] != NULL; i++) {
+    /*long lastTime = 0;
+    while (true) {
+        if (lastTime != 0) {
+            long now = getVagueTime();
+            if ((now - lastTime) > 10) {
+                printf("now: %ld last: %ld\n", now, lastTime);
+                break;
+            } else {
+                printf("now: %ld\n", now);
+            }
+        }
+        if (lastTime == 0) lastTime = getVagueTime();
+        sleep(1);
+    }*/
+//    whenWhile(foregroundClear, clearOnce, stateCheck, appArray);
+    for (int i = 0; appArray[i] != NULL; i++) {
         printf("app: %s con: %d\n", appArray[i], i);
         free(appArray[i]);
     }
     free(appArray);
-    char file[MAX_MEMORY];
-    char *path = getModePath();
-    snprintf(file, MAX_MEMORY, "%s/disable", path);
-    printf("path:%s\nforeground:%d state:%d\n", file, foregroundClear, stateCheck);
-    free(path);*/
+//    char file[MAX_MEMORY];
+//    char *path = getModePath();
+//    snprintf(file, MAX_MEMORY, "%s/disable", path);
+//    printf("path:%s\nforeground:%d state:%d\n", file, foregroundClear, stateCheck);
+//    free(path);
 //    whenWhile(foregroundClear, stateCheck);
-//    return 0;
+    return 0;
 }
