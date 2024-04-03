@@ -11,14 +11,23 @@
 static char FILE_PATH[50] = "/data/media/0/Android/RegularlyClean/";
 char mMsg[200];
 char **appArray;
+bool isDebug = false;
 
-void logInt(int result);
+void logVa(char *msg, ...);
 
 void logStr(char *msg);
+
+void logDebug(char *msg);
+
+void logDebugVa(char *msg, ...);
+
+void logWrite();
 
 bool killPid(char **pidArray);
 
 char **config(char *check);
+
+char *onlyReadOne(char **valueArray);
 
 char *vaPrintf(char *msg, va_list vaList);
 
@@ -83,48 +92,75 @@ bool findCharAtEnd(char *value, char need) {
     return false;
 }
 
+void vaLog(char *msg, va_list vaList) {
+    char *result = vaPrintf(msg, vaList);
+    strcpy(mMsg, "");
+    strcpy(mMsg, result);
+    free(result);
+    logWrite();
+}
+
+void logDebug(char *msg) {
+    if (isDebug) {
+        logStr(msg);
+    }
+}
+
+void logDebugVa(char *msg, ...) {
+    if (isDebug) {
+        va_list vaList;
+        va_start(vaList, msg);
+        vaLog(msg, vaList);
+        va_end(vaList);
+    }
+}
+
 void logStr(char *msg) {
     strcpy(mMsg, "");
     strcpy(mMsg, msg);
-    logInt(0);
+    logWrite();
 }
 
-void logInt(int result) { // 输出日志
-    if (result >= 0 && result < MAX_MEMORY) {
-        FILE *fp;
-        char *nowTime = getTime();
-        fp = fopen(joint("log.txt"), "a");
-        if (fp != NULL) {
-            fseek(fp, 0, SEEK_END);
-            fprintf(fp, "[%s] | %s\n", nowTime, mMsg);
-            fclose(fp);
-        } else {
-            perror("Unable to write to logs");
-            exit(EXIT_FAILURE);
-        }
-        strcpy(mMsg, "");
-        free(nowTime);
+void logVa(char *msg, ...) { // 输出日志
+    va_list vaList;
+    va_start(vaList, msg);
+    // vprintf(msg, vaList);
+    vaLog(msg, vaList);
+    va_end(vaList);
+}
+
+void logWrite() {
+    FILE *fp;
+    char *nowTime = getTime();
+    fp = fopen(joint("log.txt"), "a");
+    if (fp != NULL) {
+        fseek(fp, 0, SEEK_END);
+        fprintf(fp, "[%s] | %s\n", nowTime, mMsg);
+        fclose(fp);
     } else {
-        printf("The copied string is incomplete!");
-        strcpy(mMsg, "");
+        perror("Unable to write to logs");
+        free(nowTime);
+        exit(EXIT_FAILURE);
     }
+    strcpy(mMsg, "");
+    free(nowTime);
 }
 
 char *getModePath() { // 获取模块目录
     char *path = (char *) malloc(MAX_MEMORY);
     if (path == NULL) {
-        reportErrorExit("[E] --获取模块目录失败", "malloc");
+        reportErrorExit("[E] --开辟内存时失败>>>getModePath()", "malloc");
         return NULL;
     }
 
     ssize_t len = readlink("/proc/self/exe", path, MAX_MEMORY - 1);
     if (len == -1) {
         free(path);
-        reportErrorExit("[E] --获取模块目录失败", "readlink");
+        reportErrorExit("[E] --获取模块目录失败>>>/proc/self/exe", "readlink");
         return NULL;
     }
 
-//    path[len] = '\0'; // 添加字符串结束符
+    // path[len] = '\0'; // 添加字符串结束符
     path = removeLastPath(path, '/');
     return path;
 }
@@ -132,11 +168,13 @@ char *getModePath() { // 获取模块目录
 char *vaPrintf(char *msg, va_list vaList) { // 格式化字符串
     int size = vsnprintf(NULL, 0, msg, vaList);
     if (size < 0) {
+        logDebug("[E] --格式化字符串时失败>>>vaPrintf()");
         reportErrorExit(NULL, "vaPrintf");
         return NULL;
     }
     char *mCommand = (char *) malloc((size + 1) * sizeof(char));
     if (mCommand == NULL) {
+        logDebug("[E] --开辟内存时失败>>>vaPrintf()");
         reportErrorExit(NULL, "vaPrintf");
         return NULL;
     }
@@ -153,7 +191,8 @@ FILE *createShell(char *command, ...) { // 创建 Shell
     fp = popen(mCommand, "r");
     if (fp == NULL) {
         free(mCommand);
-        reportErrorExit(NULL, "createShell");
+        reportErrorExit("[E] --执行Shell命令时失败,程序退出>>>createShell()",
+                        "createShell");
         return NULL;
     }
     free(mCommand);
@@ -166,6 +205,7 @@ char **findPid(char *find) { // 查找 PID
     int count = 0;
     char **pidArray = (char **) malloc(20 * sizeof(char *));
     if (pidArray == NULL) {
+        logDebug("[E] --开辟内存时失败>>>findPid()");
         reportErrorExit(NULL, "findPid");
         return NULL;
     }
@@ -174,7 +214,9 @@ char **findPid(char *find) { // 查找 PID
         char *result = removeLinefeed(read);
         pidArray[count] = strdup(result);
         if (pidArray[count] == NULL) {
-            reportErrorExit(NULL, "findPid");
+            logDebugVa("[E] --写入数据时失败,数据: %s>>>findPid()", result);
+            break;
+            // reportErrorExit(NULL, "findPid");
         }
         count = count + 1;
     }
@@ -190,10 +232,10 @@ bool killPid(char **pidArray) { // 杀死指定 PID
         free(pidArray[i]);
         if (kill(pid, 0) == 0) {
             if (kill(pid, SIGTERM) == 0) {
-                logInt(snprintf(mMsg, MAX_MEMORY, "[Stop] --成功终止定时进程:%d", pid));
+                logVa("[Stop] --成功终止定时进程:%d", pid);
                 result = true;
             } else {
-                logInt(snprintf(mMsg, MAX_MEMORY, "[W] --不存在指定进程:%d", pid));
+                logVa("[W] --不存在指定进程:%d", pid);
                 result = false;
                 break;
             }
@@ -206,7 +248,8 @@ bool killPid(char **pidArray) { // 杀死指定 PID
 void changeSed(char *path) {
     FILE *fp;
     fp = createShell(
-            "sed -i \"/^description=/c description=CROND: [定时进程已经终止，等待恢复中···]\" \"%smodule.prop\"", path);
+            "su -c sed -i \"/^description=/c description=CROND: [定时进程已经终止，等待恢复中···]\" \"%s/module.prop\"",
+            path);
     fflush(fp);
     pclose(fp);
 }
@@ -246,12 +289,14 @@ char **config(char *check) { // 读取配置
     char **valueArray = (char **) malloc(20 * sizeof(char *));
     if (valueArray == NULL) {
         fclose(fp);
+        logDebug("[E] --开辟内存时失败>>>config()");
         reportErrorExit(NULL, "config");
         return NULL;
     }
     while (fgets(read, MAX_MEMORY, fp) != NULL) {
         strcpy(read, removeLinefeed(read));
         if (strcmp(read, "") == 0) continue;
+        logDebugVa("[D] --读取配置文件: %s", read);
         char *result = strchr(read, ch);
         free(name);
         free(value);
@@ -308,12 +353,29 @@ char **config(char *check) { // 读取配置
     return valueArray;
 }
 
+bool checkState(char *value) {
+    return strcmp(onlyReadOne(config(value)), "y") == 0;
+}
+
 char *onlyReadOne(char **valueArray) {
+    int len = 0;
+    for (int i = 0; valueArray[i] != NULL; ++i) {
+        len = len + 1;
+    }
+    if (len > 1) {
+        for (int i = 0; i < len; ++i) {
+            free(valueArray[i]);
+        }
+        free(valueArray);
+        return "n";
+    }
     char *read = valueArray[0];
     if (read == NULL) {
         read = "n";
     }
+    free(valueArray[0]);
     free(valueArray);
+    valueArray = NULL;
     return read;
 }
 
@@ -380,15 +442,16 @@ void cleanup() {
         free(appArray[i]);
     }
     free(appArray);
-    printf("clear");
+    // printf("clear");
 }
 
 int main() {
-//    bool foregroundClear = strcmp(onlyReadOne(config("auto_clear")), "y") == 0;
-//    bool clearOnce = strcmp(onlyReadOne(config("clear_only_once")), "y") == 0;
-//    bool stateCheck = strcmp(onlyReadOne(config("state_check")), "y") == 0;
-    appArray = config("app_map");
-    atexit(cleanup);
+    isDebug = checkState("c_debug");
+    bool foregroundClear = checkState("auto_clear");
+    // bool clearOnce = strcmp(onlyReadOne(config("clear_only_once")), "y") == 0;
+    bool stateCheck = checkState("state_check");
+    // appArray = config("app_map");
+    // atexit(cleanup);
     /*long lastTime = 0;
     while (true) {
         if (lastTime != 0) {
@@ -403,17 +466,18 @@ int main() {
         if (lastTime == 0) lastTime = getVagueTime();
         sleep(1);
     }*/
-//    whenWhile(foregroundClear, clearOnce, stateCheck, appArray);
-    for (int i = 0; appArray[i] != NULL; i++) {
-        printf("app: %s con: %d\n", appArray[i], i);
-        free(appArray[i]);
-    }
-    free(appArray);
-//    char file[MAX_MEMORY];
-//    char *path = getModePath();
-//    snprintf(file, MAX_MEMORY, "%s/disable", path);
-//    printf("path:%s\nforeground:%d state:%d\n", file, foregroundClear, stateCheck);
-//    free(path);
-//    whenWhile(foregroundClear, stateCheck);
+    //    whenWhile(foregroundClear, clearOnce, stateCheck, appArray);
+    // for (int i = 0; appArray[i] != NULL; i++) {
+    //     printf("app: %s con: %d\n", appArray[i], i);
+    //     free(appArray[i]);
+    // }
+    // free(appArray);
+    //    char file[MAX_MEMORY];
+    //    char *path = getModePath();
+    //    snprintf(file, MAX_MEMORY, "%s/disable", path);
+    printf("foreground:%d state:%d debug: %d\n", foregroundClear, stateCheck, isDebug);
+    // logVa("[Test] --测试: %d");
+    //    free(path);
+    //    whenWhile(foregroundClear, stateCheck);
     return 0;
 }
