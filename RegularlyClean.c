@@ -10,7 +10,8 @@
 
 static char FILE_PATH[50] = "/data/media/0/Android/RegularlyClean/";
 char mMsg[200];
-char **appArray;
+char **appArray = NULL;
+char *modulePath = NULL;
 bool isDebug = false;
 
 void logVa(char *msg, ...);
@@ -57,18 +58,18 @@ long getVagueTime() {
     return vagueTime;
 }
 
+char *joint(char *value) {
+    char result[MAX_MEMORY];
+    strcpy(result, FILE_PATH);
+    return strcat(result, value);
+}
+
 char *removeLinefeed(char *value) { // 移除换行符
     size_t len = strlen(value);
     if (len > 0 && value[len - 1] == '\n') {
         value[len - 1] = '\0';
     }
     return value;
-}
-
-char *joint(char *value) {
-    char result[MAX_MEMORY];
-    strcpy(result, FILE_PATH);
-    return strcat(result, value);
 }
 
 char *removeLastPath(char *value, char remove) { // 移除路径最后的字段
@@ -97,6 +98,7 @@ void vaLog(char *msg, va_list vaList) {
     strcpy(mMsg, "");
     strcpy(mMsg, result);
     free(result);
+    result = NULL;
     logWrite();
 }
 
@@ -121,7 +123,7 @@ void logStr(char *msg) {
     logWrite();
 }
 
-void logVa(char *msg, ...) { // 输出日志
+void logVa(char *msg, ...) {
     va_list vaList;
     va_start(vaList, msg);
     // vprintf(msg, vaList);
@@ -140,10 +142,12 @@ void logWrite() {
     } else {
         perror("Unable to write to logs");
         free(nowTime);
+        nowTime = NULL;
         exit(EXIT_FAILURE);
     }
     strcpy(mMsg, "");
     free(nowTime);
+    nowTime = NULL;
 }
 
 char *getModePath() { // 获取模块目录
@@ -156,6 +160,7 @@ char *getModePath() { // 获取模块目录
     ssize_t len = readlink("/proc/self/exe", path, MAX_MEMORY - 1);
     if (len == -1) {
         free(path);
+        path = NULL;
         reportErrorExit("[E] --获取模块目录失败>>>/proc/self/exe", "readlink");
         return NULL;
     }
@@ -172,14 +177,14 @@ char *vaPrintf(char *msg, va_list vaList) { // 格式化字符串
         reportErrorExit(NULL, "vaPrintf");
         return NULL;
     }
-    char *mCommand = (char *) malloc((size + 1) * sizeof(char));
-    if (mCommand == NULL) {
+    char *result = (char *) malloc((size + 1) * sizeof(char));
+    if (result == NULL) {
         logDebug("[E] --开辟内存时失败>>>vaPrintf()");
         reportErrorExit(NULL, "vaPrintf");
         return NULL;
     }
-    vsnprintf(mCommand, size + 1, msg, vaList);
-    return mCommand;
+    vsnprintf(result, size + 1, msg, vaList);
+    return result;
 }
 
 FILE *createShell(char *command, ...) { // 创建 Shell
@@ -191,11 +196,13 @@ FILE *createShell(char *command, ...) { // 创建 Shell
     fp = popen(mCommand, "r");
     if (fp == NULL) {
         free(mCommand);
+        mCommand = NULL;
         reportErrorExit("[E] --执行Shell命令时失败,程序退出>>>createShell()",
                         "createShell");
         return NULL;
     }
     free(mCommand);
+    mCommand = NULL;
     return fp;
 }
 
@@ -230,6 +237,7 @@ bool killPid(char **pidArray) { // 杀死指定 PID
     for (int i = 0; pidArray[i] != NULL; i++) {
         pid_t pid = (pid_t) strtol(pidArray[i], NULL, 10);
         free(pidArray[i]);
+        pidArray[i] = NULL;
         if (kill(pid, 0) == 0) {
             if (kill(pid, SIGTERM) == 0) {
                 logVa("[Stop] --成功终止定时进程:%d", pid);
@@ -242,6 +250,7 @@ bool killPid(char **pidArray) { // 杀死指定 PID
         }
     }
     free(pidArray);
+    pidArray = NULL;
     return result;
 }
 
@@ -259,6 +268,13 @@ void runSh(char *path, char *value) {
     fp = createShell("su -c \"sh %s%s &>/dev/null\"", path, value);
     fflush(fp);
     pclose(fp);
+}
+
+void runModuleSh(char *value) {
+    if (modulePath == NULL) {
+        modulePath = getModePath();
+    }
+    runSh(modulePath, value);
 }
 
 bool foregroundApp(char *pkg) {
@@ -365,8 +381,10 @@ char *onlyReadOne(char **valueArray) {
     if (len > 1) {
         for (int i = 0; i < len; ++i) {
             free(valueArray[i]);
+            valueArray[i] = NULL;
         }
         free(valueArray);
+        valueArray = NULL;
         return "n";
     }
     char *read = valueArray[0];
@@ -375,6 +393,7 @@ char *onlyReadOne(char **valueArray) {
     }
     free(valueArray[0]);
     free(valueArray);
+    valueArray[0] = NULL;
     valueArray = NULL;
     return read;
 }
@@ -402,11 +421,11 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
                 if (isForeground) {
                     if (clearOnce) {
                         if (!isCleared) {
-                            runSh("", "");
+                            runModuleSh("clear.sh");
                             isCleared = true;
                         }
                     } else {
-                        runSh("", "");
+                        runModuleSh("clear.sh");
                     }
                     lastTime = getVagueTime();
                     shouldSleep = true;
@@ -417,39 +436,50 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
         }
         if (stateCheck) {
             char file[MAX_MEMORY];
-            char *path = getModePath();
-            snprintf(file, MAX_MEMORY, "%s/disable", path);
+            if (modulePath == NULL) {
+                modulePath = getModePath();
+            }
+            snprintf(file, MAX_MEMORY, "%s/disable", modulePath);
             if (access(file, 0) == 0 && lastState) {
                 char **pids = findPid("RegularlyClean");
                 if (!killPid(pids)) {
                     logStr("[E] --停止模块定时进程失败");
                 } else {
-                    changeSed(path);
+                    changeSed(modulePath);
                     lastState = false;
                 }
             } else if (access(file, 0) != 0 && !lastState) {
-                runSh("", "");
+                runModuleSh("state.sh");
                 lastState = true;
             }
-            free(path);
         }
         sleep(5);
     }
 }
 
 void cleanup() {
-    for (int i = 0; appArray[i] != NULL; i++) {
-        free(appArray[i]);
+    if (appArray != NULL) {
+        for (int i = 0; appArray[i] != NULL; i++) {
+            free(appArray[i]);
+            appArray[i] = NULL;
+        }
+        free(appArray);
+        appArray = NULL;
     }
-    free(appArray);
-    // printf("clear");
+    if (modulePath != NULL) {
+        free(modulePath);
+        modulePath = NULL;
+    }
+    printf("clear\n");
 }
 
 int main() {
     isDebug = checkState("c_debug");
-    bool foregroundClear = checkState("auto_clear");
+    modulePath = getModePath();
+    atexit(cleanup);
+    // bool foregroundClear = checkState("auto_clear");
     // bool clearOnce = strcmp(onlyReadOne(config("clear_only_once")), "y") == 0;
-    bool stateCheck = checkState("state_check");
+    // bool stateCheck = checkState("state_check");
     // appArray = config("app_map");
     // atexit(cleanup);
     /*long lastTime = 0;
@@ -475,7 +505,7 @@ int main() {
     //    char file[MAX_MEMORY];
     //    char *path = getModePath();
     //    snprintf(file, MAX_MEMORY, "%s/disable", path);
-    printf("foreground:%d state:%d debug: %d\n", foregroundClear, stateCheck, isDebug);
+    // printf("foreground:%d state:%d debug: %d\n", foregroundClear, stateCheck, isDebug);
     // logVa("[Test] --测试: %d");
     //    free(path);
     //    whenWhile(foregroundClear, stateCheck);
