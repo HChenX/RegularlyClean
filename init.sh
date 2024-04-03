@@ -1,13 +1,6 @@
 MODDIR=${0%/*}
 
-. "MODDIR"/utils.sh
-{
-  [[ -f "/data/adb/ksu/bin/busybox" ]] && {
-    alias crond="/data/adb/ksu/bin/busybox crond"
-  }
-} || {
-  alias crond="\$( magisk --path )/.magisk/busybox/crond"
-}
+. "$MODDIR"/utils.sh
 
 logd "初始化完成！"
 

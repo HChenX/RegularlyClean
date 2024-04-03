@@ -4,6 +4,14 @@ config="$path"/config.ini
 crondPath="$MODDIR"/data/regularly.d
 crondFile="$MODDIR"/data/regularly.d/root
 
+{
+  [[ -f "/data/adb/ksu/bin/busybox" ]] && {
+    alias crond="/data/adb/ksu/bin/busybox crond"
+  }
+} || {
+  alias crond="\$( magisk --path )/.magisk/busybox/crond"
+}
+
 logd() {
   echo "[$(date '+%g/%m/%d %H:%M')] | $1" >>$logFile
 }
@@ -14,7 +22,6 @@ logClear() {
 
 logNewDay() {
   logClear "是新的一天！: [$(date +'%m/%d') 重置记录]"
-
 }
 
 device() {

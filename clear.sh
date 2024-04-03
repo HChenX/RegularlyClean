@@ -119,7 +119,7 @@ main_for() {
     }
   }
 } || {
-  logd "- [!]: 缺少$config文件" && exit 2
+  logd "- [!]: 缺少$config文件" && exit 1
 }
 
 Black_List="$path/blacklist.txt"
@@ -132,18 +132,10 @@ White_List="$path/whitelist.txt"
   skip_mb=-1
 }
 
+Screen_status="$(dumpsys window policy | grep 'mInputRestricted' | cut -d= -f2)"
 {
-  Screen_status="$(dumpsys window policy | grep 'mInputRestricted' | cut -d= -f2)"
-  {
-    [[ "$Screen_status" != "true" ]] && {
-      Screen="亮屏"
-    }
-  } || {
-    Screen="息屏"
-  }
-
-  [[ "$Screen" == "亮屏" ]] && {
-    logd "[状态]: [$Screen] 执行"
+  [[ "$Screen_status" != "true" ]] && {
+    logd "[状态]: [亮屏] 执行"
     [[ ! -d $MODDIR/data/whitelist ]] && mkdir -p "$MODDIR"/data/whitelist
     [[ ! -d $MODDIR/data/date ]] && mkdir -p "$MODDIR"/data/date
     tmp_date="$MODDIR/data/date/$(date '+%Y%m%d')"
@@ -165,5 +157,5 @@ White_List="$path/whitelist.txt"
     sed -i "/^description=/c description=CROND: [ 今日已清除: $FILE个黑名单文件 | $DIR个黑名单文件夹 ]" "$MODDIR/module.prop"
   }
 } || {
-  logd "[状态]: [$Screen] 不执行"
+  logd "[状态]: [息屏] 不执行"
 }

@@ -1,4 +1,5 @@
 path=${0%/*}
+path=$(dirname "$path")
 {
   [[ -f $path/module_path ]] && {
     module_path=$(cat $path/module_path)
@@ -7,17 +8,10 @@ path=${0%/*}
   echo "-[!]: 未安装主模块！"
   exit 1
 }
-config=$path/config.ini && cron_d_path=$module_path/data/regularly.d
-{
-  [[ -f "/data/adb/ksu/bin/busybox" ]] && {
-    alias crond="/data/adb/ksu/bin/busybox crond"
-  }
-} || {
-  alias crond="\$( magisk --path )/.magisk/busybox/crond"
-}
-
-[[ ! -d $cron_d_path ]] && mkdir -p $cron_d_path
 . $module_path/utils.sh
+config=$path/config.ini
+
+[[ ! -d $crondPath ]] && mkdir -p $crondPath
 {
   [[ -f $config ]] && {
     {
@@ -52,12 +46,9 @@ main() {
   esac
 }
 open_value() {
-  mod_1=$(echo "$open_mod" | grep "1")
-  mod_2=$(echo "$open_mod" | grep "2")
-  mod_3=$(echo "$open_mod" | grep "3")
   minute_mod() {
     {
-      [[ $mod_1 != "" ]] && {
+      [[ $minute != "" ]] && {
         case $minute in
         [0-9]*) {
           [[ $minute -ge 1 ]] && [[ $minute -le 60 ]] && {
@@ -75,7 +66,7 @@ open_value() {
   }
   time_mod() {
     {
-      [[ $mod_2 != "" ]] && {
+      [[ $what_time != "" ]] && {
         {
           {
             ! echo "$what_time" | grep -q "-" && minute="0" && {
@@ -130,7 +121,7 @@ open_value() {
   }
   day_mod() {
     {
-      [[ $mod_3 != "" ]] && {
+      [[ $what_day != "" ]] && {
         {
           {
             [[ -z $what_day ]]
@@ -162,7 +153,7 @@ open_value() {
     echo -n "$crond_rule" >"$module_path"/data/crond_data
   }
   kill_pid() {
-    crond_pid="$(pgrep -f 'set_cron.d' | grep -v $$)"
+    crond_pid="$(pgrep -f 'regularly.d' | grep -v $$)"
     [[ -n $crond_pid ]] && {
       for i in $crond_pid; do
         echo "- [i]:杀死定时 | pid: $i"
@@ -171,7 +162,7 @@ open_value() {
     }
   }
   cron_on() {
-    echo "$crond_rule $module_path/clear.sh" >$cron_d_path/root && crond -c "$cron_d_path"
+    echo "$crond_rule $module_path/clear.sh" >$crondFile && crond -c "$crondPath"
     mPid="$(pgrep -f 'regularly.d' | grep -v $$)"
     {
       [[ $mPid == "" ]] && {
@@ -191,7 +182,6 @@ open_value() {
   minute_mod
   time_mod
   day_mod
-  other_mod
   set_cron
   kill_pid
   cron_on
