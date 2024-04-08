@@ -8,6 +8,7 @@ path=$(dirname "$path")
   echo "-[!]: 未安装主模块！"
   exit 1
 }
+MODDIR=$module_path
 . $module_path/utils.sh
 config=$path/config.ini
 
@@ -44,6 +45,7 @@ main() {
   y | n) echo "- [i]:填写正确 | clear_mod=$clear_mod" ;;
   *) echo "- [!]:填写错误 | clear_mod=$clear_mod | 请填写y或n" && exit 1 ;;
   esac
+  open_value
 }
 open_value() {
   minute_mod() {
@@ -153,10 +155,10 @@ open_value() {
     echo -n "$crond_rule" >"$module_path"/data/crond_data
   }
   kill_pid() {
-    crond_pid="$(pgrep -f 'regularly.d' | grep -v $$)"
+    crond_pid="$(pgrep -f 'RegularlyClean' | grep -v $$)"
     [[ -n $crond_pid ]] && {
       for i in $crond_pid; do
-        echo "- [i]:杀死定时 | pid: $i"
+        echo "- [i]:杀死模块进程 | pid: $i"
         kill -9 "$i"
       done
     }
@@ -169,10 +171,11 @@ open_value() {
         echo "- [!]:定时启动失败，运行失败" && exit 1
       }
     } || {
-      echo "- [i]:定时启动 | pid: $mPid" && logClear
+      echo "- [i]:定时启动 | pid: $mPid" && logClear "成功修改配置，已经重新运行"
       {
         [[ -f $module_path/clear.sh ]] && {
           sh "$module_path"/clear.sh >/dev/null
+          "$module_path"/RegularlyClean &
         }
       } || {
         kill -9 "$mPid" && echo "- [!]:模块脚本缺失！" && echo "- [!]:已终止定时！" && logd "- [!]:模块脚本缺失！" && logd "- [!]:已终止定时！"

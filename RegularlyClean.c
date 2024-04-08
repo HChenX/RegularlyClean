@@ -257,7 +257,7 @@ bool killPid(char **pidArray) { // 杀死指定 PID
 void changeSed(char *path) {
     FILE *fp;
     fp = createShell(
-            "su -c sed -i \"/^description=/c description=CROND: [定时进程已经终止，等待恢复中···]\" \"%s/module.prop\"",
+            "sed -i \"/^description=/c description=CROND: [定时进程已经终止，等待恢复中···]\" \"%s/module.prop\"",
             path);
     fflush(fp);
     pclose(fp);
@@ -265,7 +265,7 @@ void changeSed(char *path) {
 
 void runSh(char *path, char *value) {
     FILE *fp;
-    fp = createShell("su -c \"sh %s%s &>/dev/null\"", path, value);
+    fp = createShell("su -c \"sh %s/%s &>/dev/null\"", path, value);
     fflush(fp);
     pclose(fp);
 }
@@ -404,33 +404,42 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
     bool shouldSleep = false;
     bool isForeground = false;
     bool isCleared = false;
+    bool isKilled = false;
     long lastTime = 0;
     while (true) {
-        if (foregroundClear) {
-            if (shouldSleep) {
-                long nowTime = getVagueTime();
-                if ((nowTime - lastTime) > 120) {
-                    shouldSleep = false;
-                }
-            } else {
-                for (int i = 0; appArray[i] != NULL; i++) {
-                    char *app = appArray[i];
-                    isForeground = foregroundApp(app);
-                    if (isForeground) break;
-                }
-                if (isForeground) {
-                    if (clearOnce) {
-                        if (!isCleared) {
-                            runModuleSh("clear.sh");
-                            isCleared = true;
-                        }
-                    } else {
-                        runModuleSh("clear.sh");
+        if (!isKilled) {
+            if (foregroundClear) {
+                if (shouldSleep) {
+                    long nowTime = getVagueTime();
+                    if ((nowTime - lastTime) > 120) {
+                        shouldSleep = false;
                     }
-                    lastTime = getVagueTime();
-                    shouldSleep = true;
                 } else {
-                    if (clearOnce) isCleared = false;
+                    for (int i = 0; appArray[i] != NULL; i++) {
+                        char *app = appArray[i];
+                        if (strcmp(app, "") != 0) {
+                            isForeground = foregroundApp(app);
+                            logDebugVa("[D] --foregroundApp: %s, isForeground: %d", app, isForeground);
+                            if (isForeground) break;
+                        }
+                    }
+                    if (isForeground) {
+                        if (clearOnce) {
+                            if (!isCleared) {
+                                runModuleSh("clear.sh");
+                                isCleared = true;
+                            }
+                        } else {
+                            runModuleSh("clear.sh");
+                            logDebugVa("[D] --isClear");
+                        }
+                        logDebugVa("[D] --clearOnce: %d, isCleared: %d", clearOnce, isCleared);
+                        lastTime = getVagueTime();
+                        shouldSleep = true;
+                    } else {
+                        if (clearOnce) isCleared = false;
+                        // shouldSleep = false;
+                    }
                 }
             }
         }
@@ -441,16 +450,21 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
             }
             snprintf(file, MAX_MEMORY, "%s/disable", modulePath);
             if (access(file, 0) == 0 && lastState) {
-                char **pids = findPid("RegularlyClean");
+                logDebugVa("[D] --findFile: %s, lastState: %d, isKilled: %d", file, lastState, isKilled);
+                char **pids = findPid("regularly.d");
                 if (!killPid(pids)) {
                     logStr("[E] --停止模块定时进程失败");
                 } else {
                     changeSed(modulePath);
                     lastState = false;
+                    isKilled = true;
                 }
             } else if (access(file, 0) != 0 && !lastState) {
+                logDebugVa("[D] --fileRemove: %s, lastState: %d, isKilled: %d", file, lastState, isKilled);
                 runModuleSh("state.sh");
+                logStr("[Run] --成功重启进程");
                 lastState = true;
+                isKilled = false;
             }
         }
         sleep(5);
@@ -478,8 +492,13 @@ int main() {
     modulePath = getModePath();
     isDebug = checkState("c_debug");
     bool autoClear = checkState("clear_mod");
-    bool clearOnce = checkState("manager_control");
-    bool stateCheck = checkState("clear_only_once");
-    appArray = config("app_map");
+    bool clearOnce = checkState("clear_only_once");
+    bool stateCheck = checkState("manager_control");
+    appArray = config("clear");
+    logDebugVa("[D] --modulePath: %s, isDebug: %d, autoClear: %d, clearOnce: %d, stateCheck: %d", modulePath, isDebug,
+               autoClear, clearOnce, stateCheck);
+    for (int i = 0; appArray[i] != NULL; i++) {
+        logDebugVa("[D] --app_map: %s", appArray[i]);
+    }
     whenWhile(autoClear, clearOnce, stateCheck);
 }
