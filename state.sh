@@ -5,7 +5,9 @@ MODDIR=${0%/*}
 
 pid="$(pgrep -f 'regularly.d' | grep -v $$)"
 [[ -n $pid ]] && {
-  kill -9 "$pid"
+  for kill_pid in $pid; do
+    kill -9 "$kill_pid"
+  done
 }
 
 {
