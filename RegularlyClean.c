@@ -392,14 +392,14 @@ char *onlyReadOne(char **valueArray) {
         read = "n";
     }
     free(valueArray[0]);
-    free(valueArray);
     valueArray[0] = NULL;
+    free(valueArray);
     valueArray = NULL;
     return read;
 }
 
 _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
-                         bool stateCheck, char **apps) {
+                         bool stateCheck) {
     bool lastState = true;
     bool shouldSleep = false;
     bool isForeground = false;
@@ -413,8 +413,8 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
                     shouldSleep = false;
                 }
             } else {
-                for (int i = 0; apps[i] != NULL; i++) {
-                    char *app = apps[i];
+                for (int i = 0; appArray[i] != NULL; i++) {
+                    char *app = appArray[i];
                     isForeground = foregroundApp(app);
                     if (isForeground) break;
                 }
@@ -470,44 +470,16 @@ void cleanup() {
         free(modulePath);
         modulePath = NULL;
     }
-    printf("clear\n");
+    // printf("clear\n");
 }
 
 int main() {
-    isDebug = checkState("c_debug");
-    modulePath = getModePath();
     atexit(cleanup);
-    // bool foregroundClear = checkState("auto_clear");
-    // bool clearOnce = strcmp(onlyReadOne(config("clear_only_once")), "y") == 0;
-    // bool stateCheck = checkState("state_check");
-    // appArray = config("app_map");
-    // atexit(cleanup);
-    /*long lastTime = 0;
-    while (true) {
-        if (lastTime != 0) {
-            long now = getVagueTime();
-            if ((now - lastTime) > 10) {
-                printf("now: %ld last: %ld\n", now, lastTime);
-                break;
-            } else {
-                printf("now: %ld\n", now);
-            }
-        }
-        if (lastTime == 0) lastTime = getVagueTime();
-        sleep(1);
-    }*/
-    //    whenWhile(foregroundClear, clearOnce, stateCheck, appArray);
-    // for (int i = 0; appArray[i] != NULL; i++) {
-    //     printf("app: %s con: %d\n", appArray[i], i);
-    //     free(appArray[i]);
-    // }
-    // free(appArray);
-    //    char file[MAX_MEMORY];
-    //    char *path = getModePath();
-    //    snprintf(file, MAX_MEMORY, "%s/disable", path);
-    // printf("foreground:%d state:%d debug: %d\n", foregroundClear, stateCheck, isDebug);
-    // logVa("[Test] --测试: %d");
-    //    free(path);
-    //    whenWhile(foregroundClear, stateCheck);
-    return 0;
+    modulePath = getModePath();
+    isDebug = checkState("c_debug");
+    bool autoClear = checkState("clear_mod");
+    bool clearOnce = checkState("manager_control");
+    bool stateCheck = checkState("clear_only_once");
+    appArray = config("app_map");
+    whenWhile(autoClear, clearOnce, stateCheck);
 }
