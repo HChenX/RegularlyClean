@@ -498,6 +498,7 @@ int main() {
     logDebugVa("[D] --modulePath: %s, isDebug: %d, autoClear: %d, clearOnce: %d, stateCheck: %d", modulePath, isDebug,
                autoClear, clearOnce, stateCheck);
     for (int i = 0; appArray[i] != NULL; i++) {
+        if (strcmp(appArray[i], "") == 0) continue;
         logDebugVa("[D] --app_map: %s", appArray[i]);
     }
     whenWhile(autoClear, clearOnce, stateCheck);

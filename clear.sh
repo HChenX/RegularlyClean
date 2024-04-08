@@ -122,8 +122,8 @@ main_for() {
   logd "- [!]: 缺少$config文件" && exit 1
 }
 
-Black_List="$path/blacklist.config"
-White_List="$path/whitelist.config"
+Black_List="$path/blacklist.txt"
+White_List="$path/whitelist.txt"
 {
   [[ $bigfile_auto_skip == y ]] && {
     skip_mb="$bigfile_mb"
