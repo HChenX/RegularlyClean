@@ -2,10 +2,10 @@
 #下面是例子 一行一个
 
 # 本模块文件
-/sdcard/Android/clear_the_blacklist/*.prop
-/sdcard/Android/clear_the_blacklist/*.md
-/sdcard/Android/clear_the_blacklist/*/*.sh
-/sdcard/Android/clear_the_blacklist/*/*.ini
+/data/media/0/Android/RegularlyClean/*.txt
+/data/media/0/Android/RegularlyClean/*.ini
+/data/media/0/Android/RegularlyClean/*/*.sh
+/data/media/0/Android/RegularlyClean/module_path
 
 # 重要目录和文件
 /*/
@@ -49,9 +49,3 @@
 /sdcard/Movies/
 /sdcard/Music/
 /sdcard/Pictures/
-
-
-
-
-
-
