@@ -35,8 +35,8 @@ blacklist_wildcard_list() {
   grep -v '#' <"$Black_List" | while read -r bl; do
     [[ -n "$bl" ]] && {
       [[ "${bl: -2}" == "/*" ]] && {
-        logd "检测到/*，请替换成/&*"
-        logd "[skip] -跳过：$bl"
+        logd "[W] --检测到/*，请替换成/&*"
+        logd "[skip] --跳过：$bl"
         continue
       }
       #把/&*替换成/*
@@ -60,7 +60,7 @@ blacklist_wildcard_list() {
       for i in $bl; do
         {
           [[ $i == "$big" ]] && {
-            logd "[big] -跳过：$i"
+            logd "[big] --跳过：$i"
             continue
           }
         } || {
