@@ -93,6 +93,11 @@ bool findCharAtEnd(char *value, char need) {
     return false;
 }
 
+int stringLen(char *value) {
+    size_t len = strlen(value);
+    return (int) len;
+}
+
 void vaLog(char *msg, va_list vaList) {
     char *result = vaPrintf(msg, vaList);
     strcpy(mMsg, "");
@@ -332,6 +337,10 @@ char **config(char *check) { // 读取配置
                     if (keep) {
                         value = strdup(read);
                         if (findCharAtEnd(value, '"')) {
+                            if (stringLen(value) == 1) {
+                                keep = false;
+                                continue;
+                            }
                             value = removeLastPath(value, '"');
                             valueArray[count] = strdup(value);
                             count = count + 1;
@@ -398,8 +407,21 @@ char *onlyReadOne(char **valueArray) {
     return read;
 }
 
+int charToInt(char *value) {
+    char *result = onlyReadOne(config(value));
+    char *endptr;
+    long num = strtol(result, &endptr, 10);
+    if (*endptr != '\0') {
+        logVa("[W] --转化字符串为数字失败，未转化部分:%s", endptr);
+        return -1;
+    } else {
+        logDebugVa("[D] --to long: %ld", num);
+    }
+    return (int) num;
+}
+
 _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
-                         bool stateCheck) {
+                         bool stateCheck, int sleepTime, int clearSleep) {
     bool lastState = true;
     bool shouldSleep = false;
     bool isForeground = false;
@@ -411,7 +433,7 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
             if (foregroundClear) {
                 if (shouldSleep) {
                     long nowTime = getVagueTime();
-                    if ((nowTime - lastTime) > 120) {
+                    if ((nowTime - lastTime) > clearSleep) {
                         shouldSleep = false;
                     }
                 } else {
@@ -467,7 +489,7 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
                 isKilled = false;
             }
         }
-        sleep(5);
+        sleep(sleepTime);
     }
 }
 
@@ -494,12 +516,17 @@ int main() {
     bool autoClear = checkState("clear_mod");
     bool clearOnce = checkState("clear_only_once");
     bool stateCheck = checkState("manager_control");
+    int sleepTime = charToInt("c_while");
+    int clearSleep = charToInt("c_clear_sleep");
+    if (sleepTime == -1) sleepTime = 5;
+    if (clearSleep == -1) clearSleep = 120;
     appArray = config("clear");
-    logDebugVa("[D] --modulePath: %s, isDebug: %d, autoClear: %d, clearOnce: %d, stateCheck: %d", modulePath, isDebug,
-               autoClear, clearOnce, stateCheck);
+    logDebugVa("[D] --modulePath: %s, isDebug: %d, autoClear: %d, "
+               "clearOnce: %d, stateCheck: %d, sleepTime: %d, clearSleep: %d", modulePath, isDebug,
+               autoClear, clearOnce, stateCheck, sleepTime, clearSleep);
     for (int i = 0; appArray[i] != NULL; i++) {
         if (strcmp(appArray[i], "") == 0) continue;
         logDebugVa("[D] --app_map: %s", appArray[i]);
     }
-    whenWhile(autoClear, clearOnce, stateCheck);
+    whenWhile(autoClear, clearOnce, stateCheck, sleepTime, clearSleep);
 }
