@@ -10,6 +10,7 @@ logd "初始化完成！"
   }
 } || {
   echo "*/10 7-23 * * * $MODDIR/data/clear.sh" >$crondFile
+  echo -n "*/10 7-23 * * *" >$MODDIR/data/crond_data
   crond -c $crondPath
 }
 

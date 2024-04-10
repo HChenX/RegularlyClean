@@ -12,6 +12,9 @@ MODDIR=$module_path
 . $module_path/utils.sh
 config=$path/config.ini
 
+chmod -R 0777 $path
+chmod -R 0777 $module_path
+
 [[ ! -d $crondPath ]] && mkdir -p $crondPath
 {
   [[ -f $config ]] && {
@@ -71,7 +74,7 @@ open_value() {
       [[ $what_time != "" ]] && {
         {
           {
-            ! echo "$what_time" | grep -q "-" && minute="0" && {
+            ! echo "$what_time" | grep -q "-" && {
               what_time="*/$what_time"
             }
           } || {
