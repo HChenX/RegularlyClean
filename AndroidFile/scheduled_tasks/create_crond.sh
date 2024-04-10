@@ -115,7 +115,7 @@ open_value() {
                 echo "- [!]: 填写错误 | what_time=$what_time | 时间不能大于或等于24点 这里的24点是0点" && exit 1
               }
             } || {
-              echo "- [i]:填写正确 | what_time=$what_time"
+              echo "- [i]: 填写正确 | what_time=$what_time"
             }
           }
         }
