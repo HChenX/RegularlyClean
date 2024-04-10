@@ -24,6 +24,24 @@ logNewDay() {
   logClear "是新的一天！: [$(date +'%m/%d') 重置记录]"
 }
 
+killCrond() {
+  pid="$(pgrep -f 'regularly.d' | grep -v $$)"
+  [[ -n $pid ]] && {
+    for kill_pid in $pid; do
+      kill -9 "$kill_pid"
+    done
+  }
+}
+
+killAll() {
+  pid="$(pgrep -f 'RegularlyClean' | grep -v $$)"
+  [[ -n $pid ]] && {
+    for kill_pid in $pid; do
+      kill -9 "$kill_pid"
+    done
+  }
+}
+
 device() {
   logd "品牌: $(getprop ro.product.brand)"
   logd "型号: $(getprop ro.product.model)"

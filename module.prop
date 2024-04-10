@@ -1,6 +1,6 @@
 id=RegularlyClean
 name=定时清理
 version=v5.2
-versionCode=2024041000
+versionCode=2024041001
 author=焕晨HChen
 description=CROND: [ 等待刷新.. ]

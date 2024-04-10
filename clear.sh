@@ -144,7 +144,9 @@ Screen_status="$(dumpsys window policy | grep 'mInputRestricted' | cut -d= -f2)"
       mkdir -p "$tmp_date"
       echo "0" >"$tmp_date"/file
       echo "0" >"$tmp_date"/dir
-      logNewDay
+      [[ $(ls "$MODDIR"/data/date) != "" ]] && {
+        logNewDay
+      }
     }
     FILE="$(cat "$tmp_date"/file)"
     DIR="$(cat "$tmp_date"/dir)"

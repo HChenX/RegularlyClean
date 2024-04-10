@@ -3,13 +3,7 @@ MODDIR=${0%/*}
 
 . "$MODDIR"/utils.sh
 
-pid="$(pgrep -f 'regularly.d' | grep -v $$)"
-[[ -n $pid ]] && {
-  for kill_pid in $pid; do
-    kill -9 "$kill_pid"
-  done
-}
-
+killCrond
 {
   [[ $(du -k "$MODDIR"/data/crond_data | cut -f1) -ne 0 ]] && {
     time=$(cat "$MODDIR"/data/crond_data)
