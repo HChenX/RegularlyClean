@@ -139,12 +139,13 @@ Screen_status="$(dumpsys window policy | grep 'mInputRestricted' | cut -d= -f2)"
     [[ ! -d $MODDIR/data/whitelist ]] && mkdir -p "$MODDIR"/data/whitelist
     [[ ! -d $MODDIR/data/date ]] && mkdir -p "$MODDIR"/data/date
     tmp_date="$MODDIR/data/date/$(date '+%Y%m%d')"
+    dateFile=$(ls $MODDIR/data/date)
     [[ ! -d "$tmp_date" ]] && {
       rm -rf "$MODDIR"/data/date &>/dev/null
       mkdir -p "$tmp_date"
       echo "0" >"$tmp_date"/file
       echo "0" >"$tmp_date"/dir
-      [[ $(ls "$MODDIR"/data/date) != "" ]] && {
+      [[ $dateFile != "" ]] && {
         logNewDay
       }
     }
