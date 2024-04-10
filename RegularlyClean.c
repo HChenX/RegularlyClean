@@ -442,7 +442,10 @@ _Noreturn void whenWhile(bool foregroundClear, bool clearOnce,
                         if (strcmp(app, "") != 0) {
                             isForeground = foregroundApp(app);
                             logDebugVa("[D] --foregroundApp: %s, isForeground: %d", app, isForeground);
-                            if (isForeground) break;
+                            if (isForeground) {
+                                logVa("[I] --应用: %s 进入前台，触发清理", app);
+                                break;
+                            }
                         }
                     }
                     if (isForeground) {
