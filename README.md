@@ -8,6 +8,7 @@
 [![GitHub Release Date](https://img.shields.io/github/release-date/HChenX/RegularlyClean)](https://github.com/HChenX/RegularlyClean/releases)
 ![last commit](https://img.shields.io/github/last-commit/HChenX/RegularlyClean?style=flat)
 ![language](https://img.shields.io/badge/language-shell-purple)
+![language](https://img.shields.io/badge/language-c-purple)
 
 [//]: # (<p><b><a href="README-en.md">English</a> | <a href="README.md">简体中文</a></b></p>)
 <p>是一个可以定时自动清理垃圾文件的模块！</p>
