@@ -4,3 +4,4 @@ version=v5.2.1
 versionCode=2024042500
 author=焕晨HChen
 description=CROND: [ 等待刷新.. ]
+updateJson=https://raw.githubusercontent.com/HChenX/RegularlyClean/master/update.json
