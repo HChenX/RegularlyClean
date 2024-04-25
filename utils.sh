@@ -9,7 +9,13 @@ crondFile="$MODDIR"/data/regularly.d/root
     alias crond="/data/adb/ksu/bin/busybox crond"
   }
 } || {
-  alias crond="\$( magisk --path )/.magisk/busybox/crond"
+  {
+    [[ -f "/data/adb/ap/bin/busybox" ]] && {
+      alias crond="/data/adb/ap/bin/busybox crond"
+    }
+  } || {
+    alias crond="\$( magisk --path )/.magisk/busybox/crond"
+  }
 }
 
 logd() {
