@@ -17,6 +17,7 @@ path_old="/data/media/0/Android/RegularlyClean_old"
   outPut "备份历史文件···"
   rm -rf "$path_old" && mkdir -p "$path_old"
   cp -rf $path/* "$path_old"
+  chmod 0777 $path_old
   rm -rf "$path"
   outPut "历史文件路径：$path_old"
 }

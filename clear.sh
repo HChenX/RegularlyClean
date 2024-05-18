@@ -29,6 +29,62 @@ whitelist_wildcard_list() {
   done
 }
 
+pathCache=""
+isSkip=false
+addCache() {
+  {
+    [[ $pathCache == "" ]] && {
+      pathCache=$1
+    }
+  } || {
+    pathCache="$pathCache\n$1"
+  }
+}
+
+doFindBigFile() {
+  duFind=$(du -k -d 0 $1 2>/dev/null)
+  for f in $duFind; do
+    big=$(echo $f | cut -f1)
+    path=$(echo $f | cut -f2)
+    {
+      [[ -f $path ]] && {
+        {
+          [[ $big -gt $skip ]] && {
+            logd "[big] --跳过：$path"
+            isSkip=true
+          }
+        } || {
+          addCache $path
+        }
+      }
+    } || {
+      {
+        [[ $big -gt $skip ]] && {
+          for t in $path; do
+            {
+              [[ -f $t ]] && {
+                size=$(du -k $t | cut -f1 2>/dev/null)
+                {
+                  [[ $size -gt $skip ]] && {
+                    logd "[big] --跳过：$t"
+                    isSkip=true
+                  }
+                } || {
+                  addCache $path
+                }
+              }
+            } || {
+              doFindBigFile "$t/*"
+            }
+          done
+        }
+      } || {
+        addCache $path
+      }
+    }
+  done
+}
+
 # 黑名单列表通配符拓展
 blacklist_wildcard_list() {
   local IFS=$'\n'
@@ -43,30 +99,78 @@ blacklist_wildcard_list() {
       [[ "${bl: -3}" == "/&*" ]] && {
         bl=${bl//\/&\*/\/\*}
       }
-      [[ $skip_mb != -1 ]] && {
-        big=$(find $bl -size +"$skip_mb"M 2>/dev/null)
-        [[ $big != "" ]] && [[ -d $bl ]] && {
+      {
+        [[ $skip != -1 ]] && {
+          isSkip=false
+          lastBl=""
+          lastBl=$bl
           {
-            [[ "${bl: -1}" == "/" ]] && {
-              bl="$bl*"
+            {
+              [[ ${bl: -1} == "/" ]] && {
+                bl="$bl*"
+              }
             }
           } || {
-            [[ "${bl: -1}" != "*" ]] && {
-              bl="$bl/*"
+            [[ ${bl: -1} != "*" ]] && {
+              {
+                {
+                  [[ -d $(echo $bl) ]] && {
+                    bl="$bl/*"
+                  }
+                }
+              } || {
+                {
+                  {
+                    [[ -f $(echo $bl) ]] && {
+                      size=$(du -k $bl | cut -f1 2>/dev/null)
+                      {
+                        {
+                          [[ $size -gt $skip ]] && {
+                            logd "[big] --跳过：$t"
+                            continue
+                          }
+                        } || {
+                          echo $bl
+                          continue
+                        }
+                      }
+                    }
+                  } || {
+                    logd "[W] --异常路径，可能文件不存在：$bl"
+                    continue
+                  }
+                }
+              }
             }
           }
-        }
-      }
-      for i in $bl; do
-        {
-          [[ $i == "$big" ]] && {
-            logd "[big] --跳过：$i"
-            continue
+          doFindBigFile "$bl"
+          {
+            {
+              [[ $isSkip == "false" ]] && {
+                echo $lastBl
+              }
+            }
+          } || {
+            echo $pathCache
+            pathCache=""
           }
-        } || {
-          echo "$i"
+          #        [[ $big != "" ]] && [[ -d $bl ]] && {
+          #          {
+          #            [[ "${bl: -1}" == "/" ]] && {
+          #              bl="$bl*"
+          #            }
+          #          } || {
+          #            [[ "${bl: -1}" != "*" ]] && {
+          #              bl="$bl/*"
+          #            }
+          #          }
+          #        }
         }
-      done
+      } || {
+        for i in $bl; do
+          echo "$i"
+        done
+      }
     }
   done
 }
@@ -126,10 +230,11 @@ Black_List="$path/blacklist.txt"
 White_List="$path/whitelist.txt"
 {
   [[ $bigfile_auto_skip == y ]] && {
-    skip_mb="$bigfile_mb"
+    skip="$bigfile_mb"
+    skip=$(expr $skip \* 1024)
   }
 } || {
-  skip_mb=-1
+  skip=-1
 }
 
 Screen_status="$(dumpsys window policy | grep 'mInputRestricted' | cut -d= -f2)"
