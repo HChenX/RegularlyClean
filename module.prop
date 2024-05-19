@@ -1,7 +1,7 @@
 id=RegularlyClean
 name=定时清理
 version=v6.0.0
-versionCode=2024051900
+versionCode=2024051901
 author=焕晨HChen
 description=CROND: [ 等待刷新.. ]
 updateJson=https://raw.githubusercontent.com/HChenX/RegularlyClean/master/update.json
