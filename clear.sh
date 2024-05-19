@@ -136,7 +136,7 @@ blacklist_wildcard_list() {
                       }
                     }
                   } || {
-                    logd "[W] --异常路径，可能文件不存在：$bl"
+                    # logd "[W] --异常路径，可能文件不存在：$bl"
                     continue
                   }
                 }
